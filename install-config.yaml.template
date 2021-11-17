@@ -1,5 +1,3 @@
-mkdir cp4-upi
-vim install-config.yaml
 apiVersion: v1
 baseDomain: example.com
 compute:
