@@ -1,3 +1,3 @@
 #! /bin/bash
 
-sudo dnf install -y vim jq wget tar bash-completion
+sudo dnf install -y vim jq wget tar bash-completion bind-util bind-utils
