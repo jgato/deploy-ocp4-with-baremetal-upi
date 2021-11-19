@@ -21,7 +21,7 @@ echo "source /etc/bash_completion.d/openshift-install" >> ~/.bashrc
 source ~/.bashrc
 
 mirror_images="https://mirror.openshift.com/pub/openshift-v4"
-wget $mirror_images/dependencies/rhcos/${version_release}/${version}/rhcos-live.x86_64.iso
+#wget $mirror_images/dependencies/rhcos/${version_release}/${version}/rhcos-live.x86_64.iso
 wget $mirror_images/dependencies/rhcos/${version_release}/${version}/rhcos-live-rootfs.x86_64.img
 wget $mirror_images/dependencies/rhcos/${version_release}/${version}/rhcos-live-kernel-x86_64
 wget $mirror_images/dependencies/rhcos/${version_release}/${version}/rhcos-live-initramfs.x86_64.img
