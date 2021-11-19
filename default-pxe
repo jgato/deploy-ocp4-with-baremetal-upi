@@ -1,0 +1,7 @@
+DEFAULT pxeboot
+TIMEOUT 20
+PROMPT 0
+LABEL pxeboot for installer
+    KERNEL http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-kernel-x86_64
+    APPEND initrd=http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-initramfs.x86_64.img coreos.live.rootfs_url=http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-rootfs.x86_64.img coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://172.22.0.253:8080/openshift4/4.9.0/ignitions/bootstrap.ign
+
