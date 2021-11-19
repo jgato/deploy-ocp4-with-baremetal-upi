@@ -30,8 +30,6 @@ You are responsible to:
 
 This example will create the VMs using libvirt and kcli. This should work in a laptop, or any other server, because we are virtualizing resources need it.
 
-
-
 ## Installing kcli
 
 Just follow instructions [Here](https://kcli.readthedocs.io/en/latest/#installation)
@@ -314,12 +312,11 @@ And some more:
 dig +noall +answer  api.lab.karmalabs.com
 api.lab.karmalabs.com.  0       IN      A       192.168.129.253
 
-dig +noall +answer  api-in.lab.karmalabs.com
+dig +noall +answer  api-int.lab.karmalabs.com
 api-int.lab.karmalabs.com. 0    IN      A       192.168.129.253
 
 dig +noall +answer lab-bootstrap.karmalabs.com
 lab-bootstrap.karmalabs.com. 0  IN      A       192.168.129.24
-
 ```
 
 This tutorial is based on libvirt that does not support dns wildcards. So we cannot have:
@@ -330,7 +327,7 @@ dig +noall +answer  random-app.apps.lab.karmalabs.com
 
 FIX: We will fail about accessing any deployed workload
 
-
+#### Prepare ignition files
 
 Lets create the install-config.yaml (you can use the template provided in this repo)
 
@@ -377,10 +374,34 @@ Now create the manifests and ignition files:
 * With manifests you can make some custom modifications for the installation. Not covered in this tutorial
 
 * The ignition files will be need it later for the pxe boot
-  
-  
 
-### Create the Load Balancer
+Make a copy of you install-config.yaml
+
+
+
+```bash
+
+$ openshift-install create manifests --dir=.
+INFO Consuming Install Config from target directory                                                                           
+WARNING Making control-plane schedulable by setting MastersSchedulable to true for Scheduler cluster settings 
+INFO Manifests created in: manifests and openshift 
+
+
+$ openshift-install create ignition-configs --dir=.
+INFO Consuming Master Machines from target directory 
+INFO Consuming Openshift Manifests from target directory 
+INFO Consuming Worker Machines from target directory 
+INFO Consuming OpenShift Install (Manifests) from target directory 
+INFO Consuming Common Manifests from target directory 
+INFO Ignition-Configs created in: . and auth      
+
+```
+
+Now you have the igntion files to boot coreos installer.
+
+
+
+#### Create the Load Balancer
 
 The LB will be in charge of balancing kube-apiserver between the control-planes and *.apps for the ingress.  How does it works? How the LB is pointed?
 
@@ -399,8 +420,6 @@ We will use haproxy for the LB, that it is installed with the 'get_packages.sh_'
 Edit `/etc/haproxy/haproxy.cfg`:
 
 ```yaml
-
-
 listen api-server-6443
   bind *:6443
   mode tcp
@@ -437,7 +456,6 @@ listen ingress-router-80
   server lab-master-0  lab-master-0.karmalabs.com:80 check inter 1s
   server lab-master-1  lab-master-1.karmalabs.com:80 check inter 1s
   server lab-master-2  lab-master-2.karmalabs.com:80 check inter 1s
-
 ```
 
 you have an example in this repo.
@@ -446,19 +464,18 @@ Notice you maybe have to tune it to point to the correctly. In this example we d
 
 Bootstrap entries can be deleted after bootstrap phase
 
-
-
 Check no errors
 
 ```bash
 haproxy -c -f /etc/haproxy/haproxy.cfg
 Configuration file is valid
-
 ```
 
+if you have an selinux problem loading haproxy
 
-
-
+```bash
+setsebool -P haproxy_connect_any on
+```
 
 Restart the service and enable
 
@@ -467,9 +484,7 @@ systemctl reload haproxy
 systemctl enable haproxy
 ```
 
-
-
-### Create the HTTP server
+#### Create the HTTP server
 
 Install the http server.  ('get_packages.sh' script do it for you)
 
@@ -487,8 +502,9 @@ Usual exported files under /var/www/html. So we will create the structure for th
 ```bash
 mkdir -p /var/www/html/openshift4/4.9.0/ignitions
 mkdir -p /var/www/html/openshift4/4.9.0/images
-Copy the previously created ignition files:
 ```
+
+Copy the previously created ignition files:
 
 ```bash
 cp *.ign /var/www/html/openshift4/4.9.0/ignitions
@@ -505,7 +521,6 @@ check it:
 ```bash
 curl localhost:8080/openshift4/4.9.0/ignitions/master.ign \ 
 > -o /tmp/master.ign
-
 ```
 
 The script get_clients_and_images.sh download also the RHCOS images that we will need later. So lets copy them
@@ -514,21 +529,15 @@ The script get_clients_and_images.sh download also the RHCOS images that we will
 cp rhcos-live* /var/www/html/openshift4/4.9.0/images/
 ```
 
-### Installing RHCOS by using an ISO image
+#### Installing RHCOS by using an ISO image
 
 **this part is not finished. But you can install with pxe**
 
-
-
-
-
-### Installing with PXE
+#### Installing with PXE
 
 Install the TFTP server. 'get_packages.sh' script do it for you.
 
 You have to configure the different pxe files for each type of host (bootstrap, master, worker). In this example we dont have workers, so you dont need it.
-
-
 
 ```bash
 systemctl enable tftp
@@ -540,8 +549,6 @@ The get_packages.sh script has downloaded also some files we need for the pxeboo
 ```bash
 cp /usr/share/syslinux/{pxelinux.0,ldlinux.c32} /var/lib/tftpboot/
 ```
-
-
 
 Now we have to create the configuration files (differents depending on the kind of host: bootstrap, master, worker). Basically they are similar but with different ignition files.
 
@@ -558,7 +565,6 @@ PROMPT 0
 LABEL pxeboot for bootstrap
     KERNEL http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-kernel-x86_64
     APPEND initrd=http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-initramfs.x86_64.img coreos.live.rootfs_url=http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-rootfs.x86_64.img  coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://172.22.0.253:8080/openshift4/4.9.0/ignitions/bootstrap.ign
-
 ```
 
 You can see it will download several images we have made available through http in a previous step. Check the urls and ips are oka. The IP has to point to the IP of the lab-installer. 
@@ -566,8 +572,6 @@ You can see it will download several images we have made available through http 
 You also can see this example only downloads the ignition for the bootstrap one. We need to create similar ones with the other ignitions. How the system will know which one to use with each host? because of the MAC. You have to create one for each MAC.
 
 For the bootstrap we can call the file default and place it in /var/lib/tftpboot/pxelinux.cfg
-
-
 
 Then we create the ones for the masters (here we dont have workers)
 
@@ -578,7 +582,6 @@ PROMPT 0
 LABEL pxeboot for master
     KERNEL http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-kernel-x86_64
     APPEND initrd=http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-initramfs.x86_64.img coreos.live.rootfs_url=http://172.22.0.253:8080/openshift4/4.9.0/images/rhcos-live-rootfs.x86_64.img  coreos.inst.install_dev=/dev/sda coreos.inst.ignition_url=http://172.22.0.253:8080/openshift4/4.9.0/ignitions/master.ign
-
 ```
 
 Create three different files with that content named (example according to the lab config, all the MAC address have to append 01-MAC in the following way)
@@ -591,11 +594,26 @@ Create three different files with that content named (example according to the l
 
 And 01-aa-aa-aa-aa-bb-04 could contain the content for the bootstrap
 
+### Init lab-bootstrat with pxe
+
+Out the lab-installer, in the host
+
+```bash
+kcli start vm lab-bootstrap
+sudo virt-viewer
+```
+
+and choose the lab-bootstrap host.
+
+Maybe you will have to send a control+alt+del and interrupt boot seq to choose pxe.
+
+If everything goes ok it will start the bootstrap installation.
+
+
+
 
 
 # Troubleshooting
-
-
 
 ## Networking issues after suspend
 
