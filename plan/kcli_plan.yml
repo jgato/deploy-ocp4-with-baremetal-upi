@@ -1,0 +1,19 @@
+{{ image }}:
+ type: image
+ url: {{ image_url }}
+
+{{ cluster }}-installer:
+ image: {{ image }}
+ pool: {{ pool }}
+ numcpus: {{ numcpus }}
+ uefi_legacy: false
+ keys: {{ keys }}
+ networkwait: {{ rhnwait }}
+ memory: {{ memory }}
+ nets:
+ - name: {{ baremetal_net }}
+   ip: {{ pxe_server }}
+ - name: {{ provisioning_net }}
+   ip: {{ pxe_server }}
+   mask: 255.255.255.0
+   gateway: 172.22.0.1
