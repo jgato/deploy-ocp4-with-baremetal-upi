@@ -36,8 +36,6 @@ This example will create the VMs using libvirt and kcli. This should work in a l
 
 Just follow instructions [Here](https://kcli.readthedocs.io/en/latest/#installation)
 
-
-
 ## Creating the infrastructure
 
 Using a kcli plan the following will be created:
@@ -251,7 +249,7 @@ Clone this repo:
 
 ```bash
 sudo dnf install -y git
-git clone https://github.com/jgato/deploy-ocp4-with-baremetal-upi.git
+git clone https://github.com/jgato/deploy-ocp4-with-vms-upi.git
 cd deploy-ocp4-with-baremetal-upi
 ./get_packages.sh
 ```
