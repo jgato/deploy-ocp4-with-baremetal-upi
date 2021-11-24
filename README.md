@@ -1,6 +1,8 @@
-# Deploy Openshift 4 with baremetal (or VMs) and UPI
+# Deploy Openshift 4 with VMs and UPI
 
-Tutorial to deploy Openshift 4 in baremetal with user provisioned infrastructure. It should also work to just deploy OCP4 in a server creating some virtual machines that will emulate baremetal servers. 
+**Notice: I didnt managed to finish the installatio. Running out of resources on my laptop**
+
+Tutorial to deploy Openshift 4 in virtualized environment with user provisioned infrastructure. 
 
 When using UPI you are responsible to:
 
@@ -34,15 +36,7 @@ This example will create the VMs using libvirt and kcli. This should work in a l
 
 Just follow instructions [Here](https://kcli.readthedocs.io/en/latest/#installation)
 
-## Prepare the kcli plan and lab
 
-* Clone the kcli plan [GitHub - karmab/kcli-openshift4-baremetal: deploy baremetal ipi using a dedicated vm](https://github.com/karmab/kcli-openshift4-baremetal)
-
-* By the time, checkout the jgato branch
-
-* Copy kcli_plan.yml and lab-jgato.yml from this repo there
-
-We will use that branch with my modified files from this repo.
 
 ## Creating the infrastructure
 
@@ -327,6 +321,20 @@ dig +noall +answer  random-app.apps.lab.karmalabs.com
 
 FIX: We will fail about accessing any deployed workload
 
+**important: in the plan.yaml configuration we have pointed to as the ingress and load balancer ips. These IPs would be VIP that would point to any of the masters.** Instead of that, we will use the lab-installer to have both ips:
+
+```bash
+ip addr add 192.168.129.253/24 dev eth0
+ip addr add 192.168.129.252/24 dev eth0
+```
+
+According to the lab config and params api_ip and ingress_ip.
+
+```yaml
+api_ip: 192.168.129.253                                                                                                       
+ingress_ip: 192.168.129.252  
+```
+
 #### Prepare ignition files
 
 Lets create the install-config.yaml (you can use the template provided in this repo)
@@ -377,10 +385,7 @@ Now create the manifests and ignition files:
 
 Make a copy of you install-config.yaml
 
-
-
 ```bash
-
 $ openshift-install create manifests --dir=.
 INFO Consuming Install Config from target directory                                                                           
 WARNING Making control-plane schedulable by setting MastersSchedulable to true for Scheduler cluster settings 
@@ -394,12 +399,9 @@ INFO Consuming Worker Machines from target directory
 INFO Consuming OpenShift Install (Manifests) from target directory 
 INFO Consuming Common Manifests from target directory 
 INFO Ignition-Configs created in: . and auth      
-
 ```
 
 Now you have the igntion files to boot coreos installer.
-
-
 
 #### Create the Load Balancer
 
@@ -558,6 +560,10 @@ mkdir /var/lib/tftpboot/pxelinux.cfg
 
 There we will place the default config. You can find an example in this repo but edit it to point check the urls to download the images.
 
+**Rename the default config file in the way of the mac address of the bootstrap node.** It is not a good idea to place the file as "default", in case of error it would be hard to see if all the hosts are taking the proper file. 
+
+**The name of the file has to be something like 01-MAC-ADDRESS**. With the 01 append it to the MAC ADDRESS. Take the MAC from the bootstrap host, but take care that it could have more than one interface, so, more than one MAC.
+
 ```bash
 DEFAULT pxeboot
 TIMEOUT 20
@@ -569,11 +575,9 @@ LABEL pxeboot for bootstrap
 
 You can see it will download several images we have made available through http in a previous step. Check the urls and ips are oka. The IP has to point to the IP of the lab-installer. 
 
-You also can see this example only downloads the ignition for the bootstrap one. We need to create similar ones with the other ignitions. How the system will know which one to use with each host? because of the MAC. You have to create one for each MAC.
+You also can see this example only downloads the ignition for the bootstrap one. We need to create similar ones with the other ignitions. 
 
-For the bootstrap we can call the file default and place it in /var/lib/tftpboot/pxelinux.cfg
-
-Then we create the ones for the masters (here we dont have workers)
+Do the same than the bootstrap for the master and workers. Modyfing the configuration to point the master|worker ignition file
 
 ```bash
 DEFAULT pxeboot
@@ -586,17 +590,17 @@ LABEL pxeboot for master
 
 Create three different files with that content named (example according to the lab config, all the MAC address have to append 01-MAC in the following way)
 
-* 01-aa-aa-aa-aa-bb-01
+* 01-aa-aa-aa-aa-aa-01
 
-* 01-aa-aa-aa-aa-bb-02
+* 01-aa-aa-aa-aa-aa-02
 
-* 01-aa-aa-aa-aa-bb-03
+* 01-aa-aa-aa-aa-aa-03
 
-And 01-aa-aa-aa-aa-bb-04 could contain the content for the bootstrap
+And 01-aa-aa-aa-aa-aa-04 contain the content for the bootstrap
 
-### Init lab-bootstrat with pxe
+### Init the lab with pxe
 
-Out the lab-installer, in the host
+Out the lab-installer, in the host. Boot the bootstrap host
 
 ```bash
 kcli start vm lab-bootstrap
@@ -609,9 +613,40 @@ Maybe you will have to send a control+alt+del and interrupt boot seq to choose p
 
 If everything goes ok it will start the bootstrap installation.
 
+Now you can boot up the other hosts
 
+#### Solving known issues
 
+In the way the plan has been created, the lab-master-* dont properly configure the hosntame. when these are available connect into from the lab-installer to configure the hostnames:
 
+```bash
+ssh core@lab-master-1
+sudo su
+echo "lab-master-1" > /etc/hostname
+reboot
+```
+
+Repeat with all the nodes master/workers
+
+### Check the installation
+
+Back to the lab-installer host, inside the directory to install openshift:
+
+```bash
+$> openshift-install wait-for bootstrap-complete --log-level debug
+DEBUG OpenShift Installer 4.9.0                    
+DEBUG Built from commit 6e5b992ba719dd4ea2d0c2a8b08ecad45179e553 
+INFO Waiting up to 20m0s for the Kubernetes API at https://api.lab.karmalabs.com:6443... 
+INFO API v1.22.0-rc.0+894a78b up                  
+INFO Waiting up to 30m0s for bootstrapping to complete... 
+```
+
+When the cluster is available you can also do:
+
+```bash
+watch 'oc get clusterversion; oc get clusteroperators; \
+ oc get pods --all-namespaces | grep -v -E "Running|Completed"; oc get nodes'
+```
 
 # Troubleshooting
 
@@ -623,4 +658,27 @@ Restart VM
 
 ```bash
 kcli restart vm lab-installer
+```
+
+## Proxy configuration
+
+If you need to use a proxy, in the install-config.yaml
+
+```yaml
+proxy:
+  httpProxy: http://<username>:<pswd>@<ip>:<port> 
+  httpsProxy: http://<username>:<pswd>@<ip>:<port> 
+  noProxy: example.com 
+```
+
+The proxy url usually goes to http even for https connections.
+
+## Check certificate expiration time
+
+```bash
+openssl s_client -connect api.lab.karmalabs.com:22623 | openssl x509 -noout -text | grep Validity -A 2
+
+        Validity
+            Not Before: Nov 22 16:48:22 2021 GMT
+            Not After : Nov 22 09:03:15 2031 GMT
 ```
